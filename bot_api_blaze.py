@@ -1,13 +1,14 @@
+import token
 import requests
-import telegram 
+import telegram
 import time
 
 
-TOKEN = 'seu token'
+TOKEN = '6208792780:AAEtedIu2vedsR0KE_MnyLHeGG-AvADSUwU'
 
 bot = telegram.Bot(TOKEN)
 
-chat_id = 'seu id'
+chat_id = '1128887397'
 
 while True:
 
@@ -41,7 +42,6 @@ while True:
             mensagem = bot.send_message(chat_id=chat_id, text=msg)
             time.sleep(40)
             mensagem.delete()
-            
 
         elif num[0:4] == ['Vermelho', 'Vermelho', 'Vermelho', 'Vermelho']:
 
