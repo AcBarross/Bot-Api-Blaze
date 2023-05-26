@@ -1,86 +1,104 @@
 import requests
-import telegram
-import asyncio
-import aiohttp
+import time
 
-
-TOKEN = '5793864346:AAEq4Z6lKXzXumyMw-CxVLMJs8vXOKBB8Mo'
-
-bot = telegram.Bot(TOKEN)
-
-chat_id = '6290068374'
 
 def get_color_name(color_code):
     if color_code == 0:
         return 'Branco'
-    elif color_code in range(1, 8):
+    elif color_code == 1:
         return 'Vermelho'
-    elif color_code in range(8, 15):
+    elif color_code == 2:
         return 'Preto'
     else:
         return 'Desconhecido'
 
-async def send_message_with_delay(message, delay=40):
-    messages = await bot.send_message(chat_id=chat_id, text=message)
-    await asyncio.sleep(delay)
 
-async def analyze_results(results):
-    colors = [get_color_name(result['color']) for result in results]
-    print("Cores:", colors)
+def update_color_list(colors):
+    url = 'https://blaze.com/api/roulette_games/recent'
+    initial_length = len(colors)
+    print(f'Tamanho inicial da lista: {initial_length}')
+    updated = False
+    while not updated:
+        time.sleep(2)
+        response = requests.get(url)
+        r = response.json()
+        if len(r) > 0:
+            for item in r:
+                color = get_color_name(item['color'])
+                if color != colors[-1]:
+                    colors.insert(0,color)
+                    updated = True
+                    break
+    final_length = len(colors)
+    print(f'Tamanho final da lista: {final_length}')
+    print(f'Lista após a atualização: {colors}')
 
-    if colors[:3] == ['Preto', 'Preto', 'Preto']:
-        await send_message_with_delay('✅ Entrada confirmada, entrar no Vermelho\nBuscar apoio no Branco')
 
-        if colors[3] == 'Vermelho' or colors[3] == 'Branco':
-            await send_message_with_delay('✅ GREEN no Vermelho')
-        else:
-            await send_message_with_delay('✅ Entrar no primeiro Gale')
-            if colors[4] == 'Vermelho' or colors[4] == 'Branco':
-                await send_message_with_delay('✅ GREEN no Vermelho')
-            else:
-                await send_message_with_delay('✅ Entrar no segundo Gale')
-                if colors[5] == 'Vermelho' or colors[5] == 'Branco':
-                    await send_message_with_delay('✅ GREEN no Vermelho')
-                else:
-                    await send_message_with_delay('✅ LOSS')
+def send_message(message):
+    bot_token = '5793864346:AAEq4Z6lKXzXumyMw-CxVLMJs8vXOKBB8Mo'
+    chat_id = '6290068374'
+    url_blaze = '🎰 [Blaze](https://blaze.com/pt/games/double)'
+    url = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={chat_id}&text={message}\n{url_blaze}&parse_mode=Markdown'
+    requests.get(url)
+    time.sleep(2)
 
-    elif colors[:3] == ['Vermelho', 'Vermelho', 'Vermelho']:
-        await send_message_with_delay('✅ Entrada confirmada, entrar no Preto\nBuscar apoio no Branco')
 
-        if colors[3] == 'Preto' or colors[3] == 'Branco':
-            await send_message_with_delay('✅ GREEN no Preto')
-        else:
-            await send_message_with_delay('✅ Entrar no primeiro Gale')
-            if colors[4] == 'Preto' or colors[4] == 'Branco':
-                await send_message_with_delay('✅ GREEN no Preto')
-            else:
-                await send_message_with_delay('✅ Entrar no segundo Gale')
-                if colors[5] == 'Preto' or colors[5] == 'Branco':
-                    await send_message_with_delay('✅ GREEN no Preto')
-                else:
-                    await send_message_with_delay('✅ LOSS')
+def check_sequence(colors, sequence):
+    if len(colors) < len(sequence):
+        return False
+    return colors[:len(sequence)] == sequence
 
-    # Adicione mais combinações aqui...
 
-async def fetch_data(session, url):
-    async with session.get(url, ssl=False) as response:
-        return await response.json()
+def process_combination(colors, sequence, expected_color):
+    send_message(f'Aposte em: {expected_color}')
+    time.sleep(15)  # Aumentado o tempo de espera para receber a cor atualizada
+    update_color_list(colors)
+    new_color = colors[-1]
+    if new_color == expected_color:
+        send_message(f'✅ GREEN no {expected_color}')
 
-async def main():
-    await asyncio.sleep(20)  # Esperar 60 segundos antes de iniciar a análise
+    elif new_color == 'Branco':
+        send_message('✅ GREEN no Branco')
 
-    async with aiohttp.ClientSession() as session:
-        while True:
+    else:
+        send_message('✅ LOSS')
+
+
+def main():
+    colors = []
+    while True:
+        try:
             url = 'https://blaze.com/api/roulette_games/recent'
-            results = await fetch_data(session, url)
-            await analyze_results(results)
-            await asyncio.sleep(5)
+            response = requests.get(url)
+            r = response.json()
+
+            if len(r) > 0:
+                for item in r:
+                    color = get_color_name(item['color'])
+                    colors.insert(0, color)
+
+                sequence = colors[-3:]
+
+                if check_sequence(sequence, ['Vermelho', 'Vermelho']):
+                    if process_combination(colors, sequence, 'Vermelho'):
+                        colors = colors[:-3]
+                elif check_sequence(sequence, ['Preto', 'Preto']):
+                    if process_combination(colors, sequence, 'Preto'):
+                        colors = colors[:-3]
+                elif check_sequence(sequence, ['Preto', 'Vermelho', 'Preto']):
+                    if process_combination(colors, sequence, 'Vermelho'):
+                        colors = colors[:-3]
+                else:
+                    if process_combination(colors, sequence, 'Preto'):
+                        colors = colors[:-3]
+
+                update_color_list(colors)
+
+            time.sleep(10)
+
+        except Exception as e:
+            print(f"Erro ao obter resultado da API da Blaze: {str(e)}")
+
 
 if __name__ == '__main__':
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
-    finally:
-        loop.close()
+    main()
